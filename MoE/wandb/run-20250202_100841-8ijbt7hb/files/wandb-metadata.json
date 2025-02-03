@@ -1,0 +1,42 @@
+{
+  "os": "Linux-6.8.0-1021-gcp-x86_64-with-glibc2.39",
+  "python": "CPython 3.9.21",
+  "startedAt": "2025-02-02T10:08:41.887055Z",
+  "program": "/home/aiffel_guacamole/MoE/MoE/MoE2.py",
+  "codePath": "MoE/MoE2.py",
+  "git": {
+    "remote": "https://github.com/AIFFEL-GuacaMole/fine_tuning.git",
+    "commit": "d70bc7dc6b74d28cfef13beaee13bcf49a25c0fa"
+  },
+  "email": "ssmyym@ajou.ac.kr",
+  "root": "/home/aiffel_guacamole/MoE/MoE",
+  "host": "gpu-instance-1.us-central1-c.c.aiffel-guacamole.internal",
+  "executable": "/home/aiffel_guacamole/anaconda3/envs/moe/bin/python",
+  "codePathLocal": "MoE2.py",
+  "cpu_count": 2,
+  "cpu_count_logical": 4,
+  "gpu": "NVIDIA L4",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "310911414272",
+      "used": "156402597888"
+    }
+  },
+  "memory": {
+    "total": "16767377408"
+  },
+  "cpu": {
+    "count": 2,
+    "countLogical": 4
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA L4",
+      "memoryTotal": "24152899584",
+      "cudaCores": 7424,
+      "architecture": "Ada"
+    }
+  ],
+  "cudaVersion": "12.4"
+}

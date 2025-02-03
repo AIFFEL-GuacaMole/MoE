@@ -1,0 +1,16 @@
+{"time":"2025-02-01T16:04:38.411855996Z","level":"INFO","msg":"stream: starting","core version":"0.19.4","symlink path":"/home/aiffel_guacamole/MoE/MoE/wandb/run-20250201_160438-kkzbxtn9/logs/debug-core.log"}
+{"time":"2025-02-01T16:04:38.514775853Z","level":"INFO","msg":"created new stream","id":"kkzbxtn9"}
+{"time":"2025-02-01T16:04:38.514818279Z","level":"INFO","msg":"stream: started","id":"kkzbxtn9"}
+{"time":"2025-02-01T16:04:38.514872622Z","level":"INFO","msg":"writer: Do: started","stream_id":"kkzbxtn9"}
+{"time":"2025-02-01T16:04:38.514900596Z","level":"INFO","msg":"handler: started","stream_id":"kkzbxtn9"}
+{"time":"2025-02-01T16:04:38.515000893Z","level":"INFO","msg":"sender: started","stream_id":"kkzbxtn9"}
+{"time":"2025-02-01T16:04:38.571741216Z","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-02-01T16:04:39.331801659Z","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-02-01T16:04:39.3325263Z","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-02-01T16:04:39.825713323Z","level":"INFO","msg":"stream: closing","id":"kkzbxtn9"}
+{"time":"2025-02-01T16:04:39.825769761Z","level":"WARN","msg":"sender: received Exit record more than once, ignoring"}
+{"time":"2025-02-01T16:04:42.043563179Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-02-01T16:04:42.263916667Z","level":"INFO","msg":"handler: closed","stream_id":"kkzbxtn9"}
+{"time":"2025-02-01T16:04:42.263954925Z","level":"INFO","msg":"sender: closed","stream_id":"kkzbxtn9"}
+{"time":"2025-02-01T16:04:42.263945973Z","level":"INFO","msg":"writer: Close: closed","stream_id":"kkzbxtn9"}
+{"time":"2025-02-01T16:04:42.264074198Z","level":"INFO","msg":"stream: closed","id":"kkzbxtn9"}

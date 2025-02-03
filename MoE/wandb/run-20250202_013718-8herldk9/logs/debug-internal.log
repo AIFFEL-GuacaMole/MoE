@@ -1,0 +1,16 @@
+{"time":"2025-02-02T01:37:18.80911527Z","level":"INFO","msg":"stream: starting","core version":"0.19.4","symlink path":"/home/aiffel_guacamole/MoE/MoE/wandb/run-20250202_013718-8herldk9/logs/debug-core.log"}
+{"time":"2025-02-02T01:37:18.91924136Z","level":"INFO","msg":"created new stream","id":"8herldk9"}
+{"time":"2025-02-02T01:37:18.919288844Z","level":"INFO","msg":"stream: started","id":"8herldk9"}
+{"time":"2025-02-02T01:37:18.919309751Z","level":"INFO","msg":"writer: Do: started","stream_id":"8herldk9"}
+{"time":"2025-02-02T01:37:18.919459712Z","level":"INFO","msg":"handler: started","stream_id":"8herldk9"}
+{"time":"2025-02-02T01:37:18.919485441Z","level":"INFO","msg":"sender: started","stream_id":"8herldk9"}
+{"time":"2025-02-02T01:37:19.008841994Z","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-02-02T01:37:20.800306983Z","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-02-02T01:37:20.801470553Z","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-02-02T01:37:20.892622409Z","level":"INFO","msg":"stream: closing","id":"8herldk9"}
+{"time":"2025-02-02T01:37:20.892658136Z","level":"WARN","msg":"sender: received Exit record more than once, ignoring"}
+{"time":"2025-02-02T01:37:20.98516532Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-02-02T01:37:21.048077476Z","level":"INFO","msg":"handler: closed","stream_id":"8herldk9"}
+{"time":"2025-02-02T01:37:21.048122329Z","level":"INFO","msg":"writer: Close: closed","stream_id":"8herldk9"}
+{"time":"2025-02-02T01:37:21.048319203Z","level":"INFO","msg":"sender: closed","stream_id":"8herldk9"}
+{"time":"2025-02-02T01:37:21.048331742Z","level":"INFO","msg":"stream: closed","id":"8herldk9"}

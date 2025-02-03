@@ -1,0 +1,13 @@
+Found local copy...
+[DEBUG] GPS model loaded successfully.
+Downloading gin_supervised_contextpred_pre_trained.pth from https://data.dgl.ai/dgllife/pre_trained/gin_supervised_contextpred.pth...
+gin_supervised_contextpred_pre_trained.pth: 100%|█████████████████████████████████████████████████████████████████████████████████████| 7.45M/7.45M [00:00<00:00, 40.1MB/s]
+Pretrained model loaded
+[DEBUG] GIN model (ContextPred) loaded successfully.
+Downloading gin_supervised_infomax_pre_trained.pth from https://data.dgl.ai/dgllife/pre_trained/gin_supervised_infomax.pth...
+gin_supervised_infomax_pre_trained.pth: 100%|█████████████████████████████████████████████████████████████████████████████████████████| 7.45M/7.45M [00:00<00:00, 36.4MB/s]
+Pretrained model loaded
+[DEBUG] GIN model (Infomax) loaded successfully.
+generating mol
+Processing SMILES: C=CCc1ccccc1OC[C@H](O)CN[C@]1(C)CCC[C@@H](C(C)(C)NC(=O)CBr)C1, Type: <class 'str'>
+Mol Type: <class 'rdkit.Chem.rdchem.Mol'>

@@ -1,0 +1,16 @@
+{"time":"2025-02-02T01:37:48.672304349Z","level":"INFO","msg":"stream: starting","core version":"0.19.4","symlink path":"/home/aiffel_guacamole/MoE/MoE/wandb/run-20250202_013748-ydye5yfa/logs/debug-core.log"}
+{"time":"2025-02-02T01:37:48.781020947Z","level":"INFO","msg":"created new stream","id":"ydye5yfa"}
+{"time":"2025-02-02T01:37:48.781050688Z","level":"INFO","msg":"stream: started","id":"ydye5yfa"}
+{"time":"2025-02-02T01:37:48.781539713Z","level":"INFO","msg":"handler: started","stream_id":"ydye5yfa"}
+{"time":"2025-02-02T01:37:48.7816747Z","level":"INFO","msg":"sender: started","stream_id":"ydye5yfa"}
+{"time":"2025-02-02T01:37:48.781711516Z","level":"INFO","msg":"writer: Do: started","stream_id":"ydye5yfa"}
+{"time":"2025-02-02T01:37:48.852637204Z","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-02-02T01:37:50.499710096Z","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-02-02T01:37:50.500785801Z","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-02-02T01:37:50.509241062Z","level":"INFO","msg":"stream: closing","id":"ydye5yfa"}
+{"time":"2025-02-02T01:37:50.548200705Z","level":"WARN","msg":"sender: received Exit record more than once, ignoring"}
+{"time":"2025-02-02T01:37:50.677559694Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-02-02T01:37:50.735754088Z","level":"INFO","msg":"handler: closed","stream_id":"ydye5yfa"}
+{"time":"2025-02-02T01:37:50.735784771Z","level":"INFO","msg":"writer: Close: closed","stream_id":"ydye5yfa"}
+{"time":"2025-02-02T01:37:50.735859401Z","level":"INFO","msg":"sender: closed","stream_id":"ydye5yfa"}
+{"time":"2025-02-02T01:37:50.735870375Z","level":"INFO","msg":"stream: closed","id":"ydye5yfa"}

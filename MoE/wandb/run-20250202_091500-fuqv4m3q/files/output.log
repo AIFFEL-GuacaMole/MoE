@@ -1,0 +1,21 @@
+Found local copy...
+Warning: Failed to load GPS model. Error: CUDA error: device-side assert triggered
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+Downloading gin_supervised_contextpred_pre_trained.pth from https://data.dgl.ai/dgllife/pre_trained/gin_supervised_contextpred.pth...
+gin_supervised_contextpred_pre_trained.pth: 100%|█████████████████████████████████████████████████████████████████████████████████████| 7.45M/7.45M [00:00<00:00, 33.3MB/s]
+Pretrained model loaded
+Warning: Failed to load GIN model (ContextPred). Error: CUDA error: device-side assert triggered
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
+
+Downloading gin_supervised_infomax_pre_trained.pth from https://data.dgl.ai/dgllife/pre_trained/gin_supervised_infomax.pth...
+gin_supervised_infomax_pre_trained.pth: 100%|█████████████████████████████████████████████████████████████████████████████████████████| 7.45M/7.45M [00:00<00:00, 28.5MB/s]
+Pretrained model loaded
+Warning: Failed to load GIN model (Infomax). Error: CUDA error: device-side assert triggered
+CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
+For debugging consider passing CUDA_LAUNCH_BLOCKING=1
+Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.

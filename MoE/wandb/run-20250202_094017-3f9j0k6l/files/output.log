@@ -1,0 +1,24 @@
+Found local copy...
+[DEBUG] GPS model loaded successfully.
+Downloading gin_supervised_contextpred_pre_trained.pth from https://data.dgl.ai/dgllife/pre_trained/gin_supervised_contextpred.pth...
+gin_supervised_contextpred_pre_trained.pth: 100%|█████████████████████████████████████████████████████████████████████████████████████| 7.45M/7.45M [00:00<00:00, 44.2MB/s]
+Pretrained model loaded
+[DEBUG] GIN model (ContextPred) loaded successfully.
+Downloading gin_supervised_infomax_pre_trained.pth from https://data.dgl.ai/dgllife/pre_trained/gin_supervised_infomax.pth...
+gin_supervised_infomax_pre_trained.pth: 100%|█████████████████████████████████████████████████████████████████████████████████████████| 7.45M/7.45M [00:00<00:00, 52.4MB/s]
+Pretrained model loaded
+[DEBUG] GIN model (Infomax) loaded successfully.
+node_feats_tensor tensor([[2],
+        [2],
+        [3],
+        ...,
+        [9],
+        [2],
+        [2]], device='cuda:0')
+edge_feats_tensor tensor([[1],
+        [1],
+        [0],
+        ...,
+        [3],
+        [3],
+        [3]], device='cuda:0')

@@ -1,0 +1,30 @@
+2025-02-01 16:16:26,245 INFO    Thread-11 :5020 [wandb_setup.py:_flush():68] Current SDK version is 0.19.4
+2025-02-01 16:16:26,245 INFO    Thread-11 :5020 [wandb_setup.py:_flush():68] Configure stats pid to 5020
+2025-02-01 16:16:26,245 INFO    Thread-11 :5020 [wandb_setup.py:_flush():68] Loading settings from /home/aiffel_guacamole/.config/wandb/settings
+2025-02-01 16:16:26,245 INFO    Thread-11 :5020 [wandb_setup.py:_flush():68] Loading settings from /home/aiffel_guacamole/MoE/MoE/wandb/settings
+2025-02-01 16:16:26,245 INFO    Thread-11 :5020 [wandb_setup.py:_flush():68] Loading settings from environment variables
+2025-02-01 16:16:26,245 INFO    Thread-11 :5020 [wandb_init.py:setup_run_log_directory():624] Logging user logs to /home/aiffel_guacamole/MoE/MoE/wandb/run-20250201_161626-59i5xsls/logs/debug.log
+2025-02-01 16:16:26,245 INFO    Thread-11 :5020 [wandb_init.py:setup_run_log_directory():625] Logging internal logs to /home/aiffel_guacamole/MoE/MoE/wandb/run-20250201_161626-59i5xsls/logs/debug-internal.log
+2025-02-01 16:16:26,245 INFO    Thread-11 :5020 [wandb_init.py:init():743] calling init triggers
+2025-02-01 16:16:26,246 INFO    Thread-11 :5020 [wandb_init.py:init():748] wandb.init called with sweep_config: {'batch_size': 32, 'epochs': 100, 'learning_rate': 0.0005561828280599634, 'optimizer': 'sgd', 'weight_decay': 0.0008512220475496311}
+config: {}
+2025-02-01 16:16:26,246 INFO    Thread-11 :5020 [wandb_init.py:init():776] starting backend
+2025-02-01 16:16:26,486 INFO    Thread-11 :5020 [wandb_init.py:init():780] sending inform_init request
+2025-02-01 16:16:26,491 INFO    Thread-11 :5020 [backend.py:_multiprocessing_setup():97] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2025-02-01 16:16:26,492 INFO    Thread-11 :5020 [wandb_init.py:init():795] backend started and connected
+2025-02-01 16:16:26,494 INFO    Thread-11 :5020 [wandb_run.py:_config_callback():1270] config_cb None None {'batch_size': 32, 'epochs': 100, 'learning_rate': 0.0005561828280599634, 'optimizer': 'sgd', 'weight_decay': 0.0008512220475496311}
+2025-02-01 16:16:26,509 INFO    Thread-11 :5020 [wandb_init.py:init():888] updated telemetry
+2025-02-01 16:16:26,559 INFO    Thread-11 :5020 [wandb_init.py:init():915] communicating run to backend with 90.0 second timeout
+2025-02-01 16:16:26,695 INFO    Thread-11 :5020 [wandb_init.py:init():967] starting run threads in backend
+2025-02-01 16:16:27,110 INFO    Thread-11 :5020 [wandb_run.py:_console_start():2409] atexit reg
+2025-02-01 16:16:27,110 INFO    Thread-11 :5020 [wandb_run.py:_redirect():2259] redirect: wrap_raw
+2025-02-01 16:16:27,110 INFO    Thread-11 :5020 [wandb_run.py:_redirect():2324] Wrapping output streams.
+2025-02-01 16:16:27,110 INFO    Thread-11 :5020 [wandb_run.py:_redirect():2349] Redirects installed.
+2025-02-01 16:16:27,111 INFO    Thread-11 :5020 [wandb_init.py:init():1009] run started, returning control to user process
+2025-02-01 16:16:30,007 INFO    Thread-11 :5020 [wandb_run.py:_finish():2134] finishing run aiffelthon-GUACAMole/moe-hyperparameter-tuning/59i5xsls
+2025-02-01 16:16:30,007 INFO    Thread-11 :5020 [wandb_run.py:_atexit_cleanup():2374] got exitcode: 1
+2025-02-01 16:16:30,008 INFO    Thread-11 :5020 [wandb_run.py:_restore():2356] restore
+2025-02-01 16:16:30,008 INFO    Thread-11 :5020 [wandb_run.py:_restore():2362] restore done
+2025-02-01 16:16:31,259 INFO    Thread-11 :5020 [wandb_run.py:_footer_history_summary_info():3976] rendering history
+2025-02-01 16:16:31,259 INFO    Thread-11 :5020 [wandb_run.py:_footer_history_summary_info():4008] rendering summary
+2025-02-01 16:16:31,259 INFO    Thread-11 :5020 [wandb_run.py:_footer_sync_info():3937] logging synced files

@@ -1,0 +1,16 @@
+{"time":"2025-02-02T01:42:50.849873108Z","level":"INFO","msg":"stream: starting","core version":"0.19.4","symlink path":"/home/aiffel_guacamole/MoE/MoE/wandb/run-20250202_014250-nkqcsvnl/logs/debug-core.log"}
+{"time":"2025-02-02T01:42:50.955146755Z","level":"INFO","msg":"created new stream","id":"nkqcsvnl"}
+{"time":"2025-02-02T01:42:50.955196725Z","level":"INFO","msg":"stream: started","id":"nkqcsvnl"}
+{"time":"2025-02-02T01:42:50.955218541Z","level":"INFO","msg":"handler: started","stream_id":"nkqcsvnl"}
+{"time":"2025-02-02T01:42:50.955275673Z","level":"INFO","msg":"writer: Do: started","stream_id":"nkqcsvnl"}
+{"time":"2025-02-02T01:42:50.955509365Z","level":"INFO","msg":"sender: started","stream_id":"nkqcsvnl"}
+{"time":"2025-02-02T01:42:51.114350363Z","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-02-02T01:42:53.727033626Z","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-02-02T01:42:53.727969378Z","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-02-02T01:42:54.021930948Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-02-02T01:42:54.135557026Z","level":"INFO","msg":"handler: operation stats","stats":{}}
+{"time":"2025-02-02T01:42:55.140440516Z","level":"INFO","msg":"stream: closing","id":"nkqcsvnl"}
+{"time":"2025-02-02T01:42:55.140462868Z","level":"INFO","msg":"handler: closed","stream_id":"nkqcsvnl"}
+{"time":"2025-02-02T01:42:55.140475554Z","level":"INFO","msg":"writer: Close: closed","stream_id":"nkqcsvnl"}
+{"time":"2025-02-02T01:42:55.140553659Z","level":"INFO","msg":"sender: closed","stream_id":"nkqcsvnl"}
+{"time":"2025-02-02T01:42:55.140562177Z","level":"INFO","msg":"stream: closed","id":"nkqcsvnl"}

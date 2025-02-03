@@ -1,0 +1,15 @@
+{"time":"2025-02-02T09:57:20.362104427Z","level":"INFO","msg":"stream: starting","core version":"0.19.4","symlink path":"/home/aiffel_guacamole/MoE/MoE/wandb/run-20250202_095720-70ey9dir/logs/debug-core.log"}
+{"time":"2025-02-02T09:57:20.467591264Z","level":"INFO","msg":"created new stream","id":"70ey9dir"}
+{"time":"2025-02-02T09:57:20.467671372Z","level":"INFO","msg":"handler: started","stream_id":"70ey9dir"}
+{"time":"2025-02-02T09:57:20.467749319Z","level":"INFO","msg":"writer: Do: started","stream_id":"70ey9dir"}
+{"time":"2025-02-02T09:57:20.467710232Z","level":"INFO","msg":"stream: started","id":"70ey9dir"}
+{"time":"2025-02-02T09:57:20.468119898Z","level":"INFO","msg":"sender: started","stream_id":"70ey9dir"}
+{"time":"2025-02-02T09:57:20.605573384Z","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-02-02T09:57:30.981083598Z","level":"INFO","msg":"stream: closing","id":"70ey9dir"}
+{"time":"2025-02-02T09:57:30.98111529Z","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-02-02T09:57:30.983432281Z","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-02-02T09:57:31.167909793Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-02-02T09:57:31.28138226Z","level":"INFO","msg":"handler: closed","stream_id":"70ey9dir"}
+{"time":"2025-02-02T09:57:31.281411754Z","level":"INFO","msg":"writer: Close: closed","stream_id":"70ey9dir"}
+{"time":"2025-02-02T09:57:31.281489325Z","level":"INFO","msg":"sender: closed","stream_id":"70ey9dir"}
+{"time":"2025-02-02T09:57:31.281500239Z","level":"INFO","msg":"stream: closed","id":"70ey9dir"}

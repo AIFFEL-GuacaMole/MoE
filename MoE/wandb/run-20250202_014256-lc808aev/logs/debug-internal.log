@@ -1,0 +1,13 @@
+{"time":"2025-02-02T01:42:56.347927981Z","level":"INFO","msg":"stream: starting","core version":"0.19.4","symlink path":"/home/aiffel_guacamole/MoE/MoE/wandb/run-20250202_014256-lc808aev/logs/debug-core.log"}
+{"time":"2025-02-02T01:42:56.453101609Z","level":"INFO","msg":"created new stream","id":"lc808aev"}
+{"time":"2025-02-02T01:42:56.453152348Z","level":"INFO","msg":"stream: started","id":"lc808aev"}
+{"time":"2025-02-02T01:42:56.453342105Z","level":"INFO","msg":"handler: started","stream_id":"lc808aev"}
+{"time":"2025-02-02T01:42:56.453361079Z","level":"INFO","msg":"writer: Do: started","stream_id":"lc808aev"}
+{"time":"2025-02-02T01:42:56.453431986Z","level":"INFO","msg":"sender: started","stream_id":"lc808aev"}
+{"time":"2025-02-02T01:42:56.898479748Z","level":"INFO","msg":"stream: closing","id":"lc808aev"}
+{"time":"2025-02-02T01:42:56.925885879Z","level":"ERROR","msg":"sender: upsertConfig: RunRecord is nil"}
+{"time":"2025-02-02T01:42:57.101933937Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-02-02T01:42:57.10204497Z","level":"INFO","msg":"handler: closed","stream_id":"lc808aev"}
+{"time":"2025-02-02T01:42:57.102070874Z","level":"INFO","msg":"writer: Close: closed","stream_id":"lc808aev"}
+{"time":"2025-02-02T01:42:57.102108212Z","level":"INFO","msg":"sender: closed","stream_id":"lc808aev"}
+{"time":"2025-02-02T01:42:57.102203649Z","level":"INFO","msg":"stream: closed","id":"lc808aev"}

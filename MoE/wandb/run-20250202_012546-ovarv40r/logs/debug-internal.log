@@ -1,0 +1,16 @@
+{"time":"2025-02-02T01:25:46.368922122Z","level":"INFO","msg":"stream: starting","core version":"0.19.4","symlink path":"/home/aiffel_guacamole/MoE/MoE/wandb/run-20250202_012546-ovarv40r/logs/debug-core.log"}
+{"time":"2025-02-02T01:25:46.477296085Z","level":"INFO","msg":"created new stream","id":"ovarv40r"}
+{"time":"2025-02-02T01:25:46.477336256Z","level":"INFO","msg":"stream: started","id":"ovarv40r"}
+{"time":"2025-02-02T01:25:46.478776393Z","level":"INFO","msg":"sender: started","stream_id":"ovarv40r"}
+{"time":"2025-02-02T01:25:46.478841211Z","level":"INFO","msg":"handler: started","stream_id":"ovarv40r"}
+{"time":"2025-02-02T01:25:46.478859385Z","level":"INFO","msg":"writer: Do: started","stream_id":"ovarv40r"}
+{"time":"2025-02-02T01:25:46.572914814Z","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-02-02T01:25:48.017243468Z","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-02-02T01:25:48.018043337Z","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-02-02T01:25:48.200064191Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-02-02T01:25:48.238714404Z","level":"INFO","msg":"handler: operation stats","stats":{}}
+{"time":"2025-02-02T01:25:49.243792628Z","level":"INFO","msg":"stream: closing","id":"ovarv40r"}
+{"time":"2025-02-02T01:25:49.24381005Z","level":"INFO","msg":"handler: closed","stream_id":"ovarv40r"}
+{"time":"2025-02-02T01:25:49.243818639Z","level":"INFO","msg":"writer: Close: closed","stream_id":"ovarv40r"}
+{"time":"2025-02-02T01:25:49.243891116Z","level":"INFO","msg":"sender: closed","stream_id":"ovarv40r"}
+{"time":"2025-02-02T01:25:49.243898681Z","level":"INFO","msg":"stream: closed","id":"ovarv40r"}
