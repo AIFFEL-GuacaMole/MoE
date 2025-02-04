@@ -2,17 +2,15 @@ import os
 import torch
 import torch.nn as nn
 from gps_finetuning import GPS
-from dgllife.model import load_pretrained
 from sklearn.model_selection import train_test_split  
-from torch.nn import BCELoss
+from torch.nn import BCEWithLogitsLoss, BCELoss
 from torch.optim import Adam
 from tdc.benchmark_group import admet_group
 from sklearn.metrics import precision_recall_curve, auc
-import wandb
 from molfeat.trans.pretrained import PretrainedDGLTransformer
+from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
 import matplotlib.pyplot as plt
 import numpy as np
-
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -26,8 +24,7 @@ GPS_CONFIG = {
 }
 
 def load_graph_models():
-    global graphgps_model, gin_model, ginfomax_model
-
+    global graphgps_model
     try:
         graphgps_model = GPS(**GPS_CONFIG).to(device)
         checkpoint = torch.load("MoE/MoE/148.ckpt", map_location=device)
@@ -35,7 +32,6 @@ def load_graph_models():
         graphgps_model.load_state_dict(state_dict, strict=False)
         graphgps_model.eval()
         print("[DEBUG] GPS model loaded successfully.")
-
     except Exception as e:
         print(f"Warning: Failed to load GPS model. Error: {str(e)}")
         graphgps_model = None
@@ -60,7 +56,7 @@ def load_or_generate_features(data, batch_size, dataset_name):
     """
     데이터셋 별로 캐시 파일을 생성하고 저장/불러오기
     """
-    cache_dir = "./cache"
+    cache_dir = "MoE/MoE/cache"
     os.makedirs(cache_dir, exist_ok=True)  # 캐시 디렉토리 생성
 
     # 데이터셋 별로 캐시 파일 경로 설정
@@ -82,6 +78,7 @@ def load_or_generate_features(data, batch_size, dataset_name):
 
     #  없으면 새로 생성
     smiles = data["Drug"].tolist()
+    print(f"Dataset {dataset_name}: {len(smiles)} molecules for feature extraction")
 
     # 🔹 GIN Context Features
     print(f"{dataset_name} - con_feature generating...")
@@ -92,6 +89,7 @@ def load_or_generate_features(data, batch_size, dataset_name):
         batch_features = torch.tensor(batch_features, dtype=torch.float32).to(device)
         con_features.append(batch_features)
     con_features = torch.cat(con_features, dim=0)
+    print(f"Generated Context Features: {con_features.shape}")
 
     #  GIN Info Features
     print(f"{dataset_name} - info_feature generating...")
@@ -135,82 +133,91 @@ def compute_auprc(y_true, y_pred):
     precision, recall, _ = precision_recall_curve(y_true, y_pred)
     return auc(recall, precision)
 
-class CrossAttention(nn.Module):
-    def __init__(self, input_sizes, hidden_size, num_heads=8):
-        super(CrossAttention, self).__init__()
-        self.attention = nn.MultiheadAttention(embed_dim=hidden_size, num_heads=num_heads, batch_first=True)
-        self.projection = nn.Linear(sum(input_sizes), hidden_size)
-        self.dropout = nn.Dropout(0.4)
-        self.layer_norm = nn.LayerNorm(hidden_size)
+class SparseDispatcher:
+    def __init__(self, num_experts, gates):
+        self._gates = gates
+        self._num_experts = num_experts
+        sorted_experts, index_sorted_experts = torch.nonzero(gates).sort(0)
+        _, self._expert_index = sorted_experts.split(1, dim=1)
+        self._batch_index = torch.nonzero(gates)[index_sorted_experts[:, 1], 0]
+        self._part_sizes = (gates > 0).sum(0).tolist()
+        gates_exp = gates[self._batch_index.flatten()]
+        self._nonzero_gates = torch.gather(gates_exp, 1, self._expert_index)
 
-    def forward(self, *inputs):
-        combined = torch.cat(inputs, dim=-1)
-        projected = self.projection(combined)
-        attn_output, _ = self.attention(projected, projected, projected)
-        return self.dropout(self.layer_norm(attn_output))
+    def dispatch(self, inp):
+        inp_exp = inp[self._batch_index].squeeze(1)
+        return torch.split(inp_exp, self._part_sizes, dim=0)
 
-class SafeBatchNorm1d(nn.Module):
-    def __init__(self, num_features, eps=1e-5, momentum=0.1):
-        super(SafeBatchNorm1d, self).__init__()
-        self.bn = nn.BatchNorm1d(num_features, eps=eps, momentum=momentum)
-    
+    def combine(self, expert_out, multiply_by_gates=True):
+        stitched = torch.cat(expert_out, 0)
+        if multiply_by_gates:
+            stitched = stitched.mul(self._nonzero_gates)
+        zeros = torch.zeros(self._gates.size(0), expert_out[-1].size(1), requires_grad=True, device=stitched.device)
+        combined = zeros.index_add(0, self._batch_index, stitched.float())
+        return combined
+
+class MLP(nn.Module):
+    def __init__(self, input_size, output_size, hidden_size):
+        super(MLP, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.bn1 = nn.LayerNorm(hidden_size)  
+        self.dropout1 = nn.Dropout(0.5)  
+        self.fc2 = nn.Linear(hidden_size, output_size)
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
+
     def forward(self, x):
-        if x.shape[0] == 1:
-            return x
-        else:
-            return self.bn(x)
+        out = self.fc1(x)
+        out = self.bn1(out)  
+        out = self.relu(out)
+        out = self.dropout1(out)  
+        out = self.fc2(out)
+        out = torch.softmax(out, dim=1)
+        return out
 
-class MoEForMultiModel(nn.Module):
-    def __init__(self, input_sizes, output_size, hidden_size, num_experts=4, k=2, dropout=0.4):
-        super(MoEForMultiModel, self).__init__()
+class MoE(nn.Module):
+    def __init__(self, input_size, output_size, num_experts, hidden_size, noisy_gating=True, k=4):
+        super(MoE, self).__init__()
+        self.noisy_gating = noisy_gating
         self.num_experts = num_experts
-        self.k = k  
+        self.k = k
+        self.experts = nn.ModuleList([MLP(input_size, output_size, hidden_size) for _ in range(num_experts)])
+        self.w_gate = nn.Parameter(torch.randn(input_size, num_experts) * 0.1, requires_grad=True)
+        self.w_noise = nn.Parameter(torch.randn(input_size, num_experts) * 0.1, requires_grad=True)
+        self.softplus = nn.Softplus()
+        self.softmax = nn.Softmax(dim=1)
+        self.register_buffer("mean", torch.tensor([0.0]))
+        self.register_buffer("std", torch.tensor([1.0]))
+        assert self.k <= self.num_experts
 
-        self.cross_attention = CrossAttention(input_sizes, hidden_size)
+    def noisy_top_k_gating(self, x, train, noise_epsilon=1e-2, temperature=0.01):
+        clean_logits = x @ self.w_gate
+        if self.noisy_gating and train:
+            raw_noise_stddev = x @ self.w_noise
+            noise_stddev = self.softplus(raw_noise_stddev) + noise_epsilon
+            noisy_logits = clean_logits + (torch.randn_like(clean_logits) * noise_stddev)
+            logits = noisy_logits / temperature 
+        else:
+            logits = clean_logits / temperature  
 
-        self.gate = nn.Sequential(
-            nn.Linear(hidden_size, num_experts),
-            nn.Softmax(dim=-1)  
-        )
+        logits = self.softmax(logits)
+        top_logits, top_indices = logits.topk(self.k, dim=1)
+        top_k_gates = top_logits / (top_logits.sum(1, keepdim=True) + 1e-6)
+        zeros = torch.zeros_like(logits, requires_grad=True)
+        gates = zeros.scatter(1, top_indices, top_k_gates)
+        return gates
 
-        self.experts = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(hidden_size, 1024),
-                nn.GELU(),
-                SafeBatchNorm1d(1024),  
-                nn.Dropout(dropout),
-                nn.Linear(1024, 512),
-                nn.GELU(),
-                SafeBatchNorm1d(512),
-                nn.Dropout(dropout),
-                nn.Linear(512, 256),
-                nn.GELU(),
-                SafeBatchNorm1d(256),
-                nn.Linear(256, 128),
-                nn.GELU(),
-                nn.Linear(128, 1)  
-            ) for _ in range(num_experts)
-        ])
-
-    def forward(self, con_output):
-        combined_input = self.cross_attention(con_output)  
-
-        routing_weights = self.gate(combined_input)  
-
-        topk_values, topk_indices = torch.topk(routing_weights, self.k, dim=-1)  
-        topk_values = topk_values / topk_values.sum(dim=-1, keepdim=True)  
-
-        batch_size = combined_input.shape[0]
-        expert_outputs = torch.zeros(batch_size, self.k, 1).to(combined_input.device)
-
-        for i in range(self.k):
-            expert_idx = topk_indices[:, i] 
-            for j in range(batch_size):
-                expert_outputs[j, i] = self.experts[expert_idx[j]](combined_input[j:j+1])
-
-        final_output = torch.sum(expert_outputs * topk_values.unsqueeze(-1), dim=1)  
-
-        return torch.sigmoid(final_output).view(-1) 
+    def forward(self, x, loss_coef=1e-2):
+        gates = self.noisy_top_k_gating(x, self.training)
+        entropy = -torch.sum(gates * torch.log(gates + 1e-10), dim=1).mean()
+        entropy_loss = -(gates * torch.log(gates + 1e-10)).sum(dim=1).mean()
+        load_balancing_loss = torch.mean((gates.mean(dim=0) - 1.0 / self.num_experts) ** 2)
+        loss_entropy_reg = 0.01 * entropy_loss + 0.1 * load_balancing_loss
+        dispatcher = SparseDispatcher(self.num_experts, gates)
+        expert_inputs = dispatcher.dispatch(x)
+        expert_outputs = [self.experts[i](expert_inputs[i]) for i in range(self.num_experts)]
+        y = dispatcher.combine(expert_outputs)
+        return y, loss_entropy_reg
 
 dataset_routing_history = {}
 
@@ -277,96 +284,81 @@ def visualize_routing_weights(moe, dataset_name):
 
 if __name__ == "__main__":
     admet_groups = admet_group(path='data/')
-    benchmarks_auprc = [
-        admet_groups.get('CYP2C9_Veith'),
-        admet_groups.get('CYP2D6_Veith'),
-        admet_groups.get('CYP3A4_Veith')
-    ]
-    benchmarks_auroc = [
-        admet_groups.get('hERG'),
-        admet_groups.get('AMES'),
-        admet_groups.get('DILI')
-    ]
-
+    benchmarks = [admet_groups.get('CYP2C9_Veith')]
     batch_size = 32
-    learning_rate = 1e-4
-    weight_decay = 5e-5
-    hidden_size = 1024
-
-    patience = 5
+    input_size = 300
+    output_size = 1
+    num_experts = 2
+    hidden_size = 512
+    learning_rate = 5e-4
+    weight_decay = 1e-4
+    patience = 10
     best_val_auprc = 0.0
     patience_counter = 0
 
     load_graph_models()
 
-    for benchmarks, metric in [(benchmarks_auprc, 'AUPRC'), (benchmarks_auroc, 'AUROC')]:
-        predictions = {}
-        for benchmark in benchmarks:
-            name = benchmark['name']
-            train_val, test = benchmark['train_val'], benchmark['test']
+    for benchmark in benchmarks:
+        name = benchmark['name']
+        train_val, test = benchmark['train_val'], benchmark['test']
+        train, val = train_test_split(train_val, test_size=0.2, stratify=train_val["Y"], random_state=42)
+        train_con, _, _, _ = load_or_generate_features(train, batch_size, name)
+        val_con, _, _, _ = load_or_generate_features(val, batch_size, name)
+        val_con = val_con[:len(val)] 
+        test_con, _, _, _ = load_or_generate_features(test, batch_size, name)
+        moe = MoE(input_size, output_size, num_experts, hidden_size, noisy_gating=True, k=2).to(device)
+        optimizer = Adam(moe.parameters(), lr=learning_rate, weight_decay=weight_decay)
+        pos_weight = torch.tensor([5.0], device=device)  
+        criterion = BCEWithLogitsLoss(pos_weight=pos_weight)
+        scheduler = CosineAnnealingLR(optimizer, T_max=30, eta_min=1e-4)
+
+        for epoch in range(200):
+            moe.train()
+            optimizer.zero_grad()
+            train_output, loss_entropy_reg = moe(train_con)
             
-            train, val = train_test_split(train_val, test_size=0.2, random_state=42)
+            gates = moe.noisy_top_k_gating(train_con, train=True)
+            feature_names = ["con", "info", "edge", "mask"]
+            num_features = len(feature_names)
+            gates = moe.noisy_top_k_gating(train_con, train=True)
+            expert_usage = gates.mean(dim=0).detach().cpu().numpy()
+            print(f"[DEBUG] Expert Usage per Batch: {expert_usage}")
 
-            train_con, _, _, _ = load_or_generate_features(train, batch_size, name)
-            val_con, _, _, _ = load_or_generate_features(val, batch_size, name)
-            test_con, _, _, _ = load_or_generate_features(test, batch_size, name)
-            
-            input_sizes = [train_con.shape[1]]
-            output_size = 1
+            train_labels = torch.tensor(train["Y"].values, dtype=torch.float32).unsqueeze(1).to(device)
+            expert_entropy_loss = -(gates * torch.log(gates + 1e-8)).sum(dim=1).mean()
+            train_loss = criterion(train_output, train_labels) + 0.2 * expert_entropy_loss
 
-            moe = MoEForMultiModel(input_sizes, output_size, hidden_size, dropout=0.4).to(device)
+            train_loss.backward()
+            torch.nn.utils.clip_grad_norm_(moe.parameters(), max_norm=5.0)
 
-            optimizer = Adam(moe.parameters(), lr=learning_rate, weight_decay=weight_decay)
-            criterion = BCELoss()
-
-            for epoch in range(200):
-                moe.train()
-                optimizer.zero_grad()
-                train_output = moe(train_con)
-                train_output = train_output.view(-1)
-                train_labels = torch.tensor(train["Y"].values[:len(train_output)], dtype=torch.float32).to(device)
-                train_output = train_output[:len(train_labels)]
-                train_labels = train_labels[:len(train_output)]
-                train_loss = criterion(train_output, train_labels)
-                train_loss.backward()
-                optimizer.step()
-                train_auprc = compute_auprc(train_labels.cpu().numpy(), train_output[:len(train_labels)].cpu().detach().numpy())
-                
-                moe.eval()
-                with torch.no_grad():
-                    val_output = moe(val_con)
-                    val_output = val_output.view(-1)
-                    val_labels = torch.tensor(val["Y"].values[:len(val_output)], dtype=torch.float32).to(device)
-                    val_output = val_output[:len(val_labels)]
-                    val_labels = val_labels[:len(val_output)]
-                    val_loss = criterion(val_output, val_labels)
-                    val_auprc = compute_auprc(val_labels.cpu().numpy(), val_output[:len(val_labels)].cpu().detach().numpy())
-
-                print(f"Epoch [{epoch+1}/200] | Train Loss: {train_loss.item():.4f} | Train AUPRC: {train_auprc:.4f} | "
-                    f"Val Loss: {val_loss.item():.4f} | Val AUPRC: {val_auprc:.4f}")
-                
-                if val_auprc > best_val_auprc:
-                    best_val_auprc = val_auprc
-                    patience_counter = 0  
-                else:
-                    patience_counter += 1
-                
-                if patience_counter >= patience:
-                    print(f"Early stopping triggered at epoch {epoch+1}!")
-                    break
+            optimizer.step()
+            train_auprc = compute_auprc(train_labels.cpu().numpy(), train_output.cpu().detach().numpy())
 
             moe.eval()
-            test_output_list = []
-            for i in range(0, len(test), batch_size):
-                batch_indices = slice(i, min(i + batch_size, len(test)))
-                batch_con = test_con[batch_indices]
-                with torch.no_grad():
-                    batch_output = moe(batch_con).squeeze()
-                test_output_list.append(batch_output)
+            for expert in moe.experts:
+                expert.eval()
 
-            test_output = torch.cat(test_output_list, dim=0)
-            y_pred = test_output.cpu().numpy()
-            predictions[name] = y_pred
+            val_con_dict = {smiles: feature for smiles, feature in zip(val["Drug"], val_con)}
+            val_con = torch.stack([val_con_dict[smiles] for smiles in val["Drug"]])
 
-        results = admet_groups.evaluate(predictions)
-        print(f"Evaluation Results for {metric}:", results)
+            with torch.no_grad():
+                val_output, _ = moe(val_con)
+                val_labels = torch.tensor(val["Y"].values, dtype=torch.float32).unsqueeze(1).to(device)
+                print(f"[DEBUG] val_output mean: {val_output.mean().item():.6f}, std: {val_output.std().item():.6f}")
+                val_loss = criterion(val_output, val_labels)
+                val_auprc = compute_auprc(val_labels.cpu().numpy(), val_output.cpu().detach().numpy())
+
+            print(f"Epoch [{epoch+1}/200] | Train Loss: {train_loss.item():.4f} | Train AUPRC: {train_auprc:.4f} | "
+                  f"Val Loss: {val_loss.item():.4f} | Val AUPRC: {val_auprc:.4f}")
+            
+            scheduler.step(val_loss)
+            
+            if val_auprc > best_val_auprc:
+                best_val_auprc = val_auprc
+                patience_counter = 0
+            else:
+                patience_counter += 1
+
+            if patience_counter >= patience:
+                print(f"Early stopping triggered at epoch {epoch+1}!")
+                break
