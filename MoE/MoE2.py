@@ -11,6 +11,7 @@ from molfeat.trans.pretrained import PretrainedDGLTransformer
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
 import matplotlib.pyplot as plt
 import numpy as np
+from torch.distributions.normal import Normal
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -156,6 +157,9 @@ class SparseDispatcher:
         combined = zeros.index_add(0, self._batch_index, stitched.float())
         return combined
 
+    def expert_to_gates(self):
+        return torch.split(self._nonzero_gates, self._part_sizes, dim=0)
+    
 class MLP(nn.Module):
     def __init__(self, input_size, output_size, hidden_size):
         super(MLP, self).__init__()
@@ -190,34 +194,71 @@ class MoE(nn.Module):
         self.register_buffer("std", torch.tensor([1.0]))
         assert self.k <= self.num_experts
 
-    def noisy_top_k_gating(self, x, train, noise_epsilon=1e-2, temperature=0.01):
+    def cv_squared(self, x):
+        eps = 1e-10
+
+        if x.shape[0] == 1:
+            return torch.tensor([0], device=x.device, dtype=x.dtype)
+        return x.float().var() / (x.float().mean()**2 + eps)
+
+    def _gates_to_load(self, gates):
+        return (gates > 0).sum(0)
+
+    def _prob_in_top_k(self, clean_values, noisy_values, noise_stddev, noisy_top_values):
+        batch = clean_values.size(0)
+        m = noisy_top_values.size(1)
+        top_values_flat = noisy_top_values.flatten()
+
+        threshold_positions_if_in = torch.arange(batch, device=clean_values.device) * m + self.k
+        threshold_if_in = torch.unsqueeze(torch.gather(top_values_flat, 0, threshold_positions_if_in), 1)
+        is_in = torch.gt(noisy_values, threshold_if_in)
+        threshold_positions_if_out = threshold_positions_if_in - 1
+        threshold_if_out = torch.unsqueeze(torch.gather(top_values_flat, 0, threshold_positions_if_out), 1)
+        
+        normal = Normal(self.mean, self.std)
+        prob_if_in = normal.cdf((clean_values - threshold_if_in)/noise_stddev)
+        prob_if_out = normal.cdf((clean_values - threshold_if_out)/noise_stddev)
+        prob = torch.where(is_in, prob_if_in, prob_if_out)
+        return prob
+
+    def noisy_top_k_gating(self, x, train, noise_epsilon=1e-2):
         clean_logits = x @ self.w_gate
         if self.noisy_gating and train:
             raw_noise_stddev = x @ self.w_noise
             noise_stddev = self.softplus(raw_noise_stddev) + noise_epsilon
             noisy_logits = clean_logits + (torch.randn_like(clean_logits) * noise_stddev)
-            logits = noisy_logits / temperature 
+            logits = noisy_logits
         else:
-            logits = clean_logits / temperature  
+            logits = clean_logits
 
         logits = self.softmax(logits)
-        top_logits, top_indices = logits.topk(self.k, dim=1)
-        top_k_gates = top_logits / (top_logits.sum(1, keepdim=True) + 1e-6)
+        top_logits, top_indices = logits.topk(min(self.k + 1, self.num_experts), dim=1)
+        top_k_logits = top_logits[:, :self.k]
+        top_k_indices = top_indices[:, :self.k]
+        top_k_gates = top_k_logits / (top_k_logits.sum(1, keepdim=True) + 1e-6)
+
         zeros = torch.zeros_like(logits, requires_grad=True)
-        gates = zeros.scatter(1, top_indices, top_k_gates)
-        return gates
+        gates = zeros.scatter(1, top_k_indices, top_k_gates)
+
+        if self.noisy_gating and self.k < self.num_experts and train:
+            load = (self._prob_in_top_k(clean_logits, noisy_logits, noise_stddev, top_logits)).sum(0)
+        else:
+            load = self._gates_to_load(gates)
+
+        return gates, load
 
     def forward(self, x, loss_coef=1e-2):
-        gates = self.noisy_top_k_gating(x, self.training)
-        entropy = -torch.sum(gates * torch.log(gates + 1e-10), dim=1).mean()
-        entropy_loss = -(gates * torch.log(gates + 1e-10)).sum(dim=1).mean()
-        load_balancing_loss = torch.mean((gates.mean(dim=0) - 1.0 / self.num_experts) ** 2)
-        loss_entropy_reg = 0.01 * entropy_loss + 0.1 * load_balancing_loss
+        gates, load = self.noisy_top_k_gating(x, self.training)
+        importance = gates.sum(0)
+        loss = self.cv_squared(importance) + self.cv_squared(load)
+        loss *= loss_coef
+
         dispatcher = SparseDispatcher(self.num_experts, gates)
         expert_inputs = dispatcher.dispatch(x)
+        gates = dispatcher.expert_to_gates()
         expert_outputs = [self.experts[i](expert_inputs[i]) for i in range(self.num_experts)]
         y = dispatcher.combine(expert_outputs)
-        return y, loss_entropy_reg
+        return y, loss
 
 dataset_routing_history = {}
 
@@ -302,10 +343,12 @@ if __name__ == "__main__":
         name = benchmark['name']
         train_val, test = benchmark['train_val'], benchmark['test']
         train, val = train_test_split(train_val, test_size=0.2, stratify=train_val["Y"], random_state=42)
+        
         train_con, _, _, _ = load_or_generate_features(train, batch_size, name)
         val_con, _, _, _ = load_or_generate_features(val, batch_size, name)
-        val_con = val_con[:len(val)] 
+        val_con = val_con[:len(val)]
         test_con, _, _, _ = load_or_generate_features(test, batch_size, name)
+
         moe = MoE(input_size, output_size, num_experts, hidden_size, noisy_gating=True, k=2).to(device)
         optimizer = Adam(moe.parameters(), lr=learning_rate, weight_decay=weight_decay)
         pos_weight = torch.tensor([5.0], device=device)  
@@ -317,12 +360,10 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             train_output, loss_entropy_reg = moe(train_con)
             
-            gates = moe.noisy_top_k_gating(train_con, train=True)
-            feature_names = ["con", "info", "edge", "mask"]
-            num_features = len(feature_names)
-            gates = moe.noisy_top_k_gating(train_con, train=True)
-            expert_usage = gates.mean(dim=0).detach().cpu().numpy()
-            print(f"[DEBUG] Expert Usage per Batch: {expert_usage}")
+            gates, _ = moe.noisy_top_k_gating(train_con, train=True)  
+            if gates is not None:
+                expert_usage = gates.mean(dim=0).detach().cpu().numpy()
+                print(f"[DEBUG] Expert Usage per Batch: {expert_usage}")
 
             train_labels = torch.tensor(train["Y"].values, dtype=torch.float32).unsqueeze(1).to(device)
             expert_entropy_loss = -(gates * torch.log(gates + 1e-8)).sum(dim=1).mean()
@@ -339,14 +380,20 @@ if __name__ == "__main__":
                 expert.eval()
 
             val_con_dict = {smiles: feature for smiles, feature in zip(val["Drug"], val_con)}
-            val_con = torch.stack([val_con_dict[smiles] for smiles in val["Drug"]])
+            val_con_list = [val_con_dict[smiles] for smiles in val["Drug"] if smiles in val_con_dict]
+            val_con = torch.stack(val_con_list) if len(val_con_list) > 0 else torch.empty(0, device=device)
 
             with torch.no_grad():
-                val_output, _ = moe(val_con)
-                val_labels = torch.tensor(val["Y"].values, dtype=torch.float32).unsqueeze(1).to(device)
-                print(f"[DEBUG] val_output mean: {val_output.mean().item():.6f}, std: {val_output.std().item():.6f}")
-                val_loss = criterion(val_output, val_labels)
-                val_auprc = compute_auprc(val_labels.cpu().numpy(), val_output.cpu().detach().numpy())
+                if len(val_con) > 0:
+                    val_output, _ = moe(val_con)
+                    val_labels = torch.tensor(val["Y"].values, dtype=torch.float32).unsqueeze(1).to(device)
+                    print(f"[DEBUG] val_output mean: {val_output.mean().item():.6f}, std: {val_output.std().item():.6f}")
+                    val_loss = criterion(val_output, val_labels)
+                    val_auprc = compute_auprc(val_labels.cpu().numpy(), val_output.cpu().detach().numpy())
+                else:
+                    print("[WARNING] val_con is empty. Skipping validation step.")
+                    val_loss = torch.tensor(float('inf'), device=device)
+                    val_auprc = 0.0
 
             print(f"Epoch [{epoch+1}/200] | Train Loss: {train_loss.item():.4f} | Train AUPRC: {train_auprc:.4f} | "
                   f"Val Loss: {val_loss.item():.4f} | Val AUPRC: {val_auprc:.4f}")
