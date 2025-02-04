@@ -1,7 +1,6 @@
 import os 
 import torch
 import torch.nn as nn
-from gps_finetuning import GPS
 from sklearn.model_selection import train_test_split  
 from torch.nn import BCEWithLogitsLoss, BCELoss
 from torch.optim import Adam
@@ -14,28 +13,6 @@ import numpy as np
 from torch.distributions.normal import Normal
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-GPS_CONFIG = {
-    "channels": 64,
-    "pe_dim": 20,
-    "num_layers": 10,
-    "attn_type": "multihead",
-    "attn_kwargs": {"dropout": 0.5},
-    "max_node_value": 100
-}
-
-def load_graph_models():
-    global graphgps_model
-    try:
-        graphgps_model = GPS(**GPS_CONFIG).to(device)
-        checkpoint = torch.load("MoE/MoE/148.ckpt", map_location=device)
-        state_dict = checkpoint['model_state']
-        graphgps_model.load_state_dict(state_dict, strict=False)
-        graphgps_model.eval()
-        print("[DEBUG] GPS model loaded successfully.")
-    except Exception as e:
-        print(f"Warning: Failed to load GPS model. Error: {str(e)}")
-        graphgps_model = None
 
 def prepare_con_features(smiles_data):
     transformer = PretrainedDGLTransformer(kind='gin_supervised_contextpred')
@@ -55,16 +32,13 @@ def prepare_mask_features(smiles_data):
 
 def load_or_generate_features(data, batch_size, dataset_name, split):
     cache_dir = "MoE/MoE/cache"
-    os.makedirs(cache_dir, exist_ok=True)  # 캐시 디렉토리 생성
+    os.makedirs(cache_dir, exist_ok=True)  
+    
+    con_cache_path = os.path.join(cache_dir, f"{dataset_name}_con_features.pt")
+    info_cache_path = os.path.join(cache_dir, f"{dataset_name}_info_features.pt")
+    edge_cache_path = os.path.join(cache_dir, f"{dataset_name}_edge_features.pt")
+    mask_cache_path = os.path.join(cache_dir, f"{dataset_name}_mask_features.pt")
 
-   # 데이터셋 + split (train/val/test) 별로 캐시 파일 경로 설정
-    con_cache_path = os.path.join(cache_dir, f"{dataset_name}_{split}_con_features.pt")
-    info_cache_path = os.path.join(cache_dir, f"{dataset_name}_{split}_info_features.pt")
-    edge_cache_path = os.path.join(cache_dir, f"{dataset_name}_{split}_edge_features.pt")
-    mask_cache_path = os.path.join(cache_dir, f"{dataset_name}_{split}_mask_features.pt")
-
-
-    #  만약 모든 캐시 파일이 존재하면 불러오기
     if all(os.path.exists(path) for path in [con_cache_path, info_cache_path, edge_cache_path, mask_cache_path]):
         print(f"Loading cached features for {dataset_name}...")
 
@@ -78,8 +52,6 @@ def load_or_generate_features(data, batch_size, dataset_name, split):
     #  없으면 새로 생성
     smiles = data["Drug"].tolist()
     print(f"Dataset {dataset_name} ({split}): {len(smiles)} molecules for feature extraction")
-
-
 
     # GIN Context Features
     print(f"{dataset_name} ({split}) - con_feature generating...")
@@ -288,8 +260,6 @@ if __name__ == "__main__":
     patience = 10
     best_val_auprc = 0.0
     patience_counter = 0
-
-    load_graph_models()
 
     for benchmark in benchmarks:
         name = benchmark['name']
