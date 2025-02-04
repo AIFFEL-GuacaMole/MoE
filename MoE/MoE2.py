@@ -54,9 +54,6 @@ def prepare_mask_features(smiles_data):
     return transformer(smiles_data)
 
 def load_or_generate_features(data, batch_size, dataset_name):
-    """
-    데이터셋 별로 캐시 파일을 생성하고 저장/불러오기
-    """
     cache_dir = "MoE/MoE/cache"
     os.makedirs(cache_dir, exist_ok=True)  # 캐시 디렉토리 생성
 
@@ -86,9 +83,9 @@ def load_or_generate_features(data, batch_size, dataset_name):
     con_features = []
     for i in range(0, len(smiles), batch_size):
         batch_smiles = smiles[i:i + batch_size]
-        batch_features = prepare_con_features(batch_smiles)
-        batch_features = torch.tensor(batch_features, dtype=torch.float32).to(device)
-        con_features.append(batch_features)
+        batch_con = prepare_con_features(batch_smiles)
+        batch_con = torch.tensor(batch_con, dtype=torch.float32).to(device)
+        con_features.append(batch_con)
     con_features = torch.cat(con_features, dim=0)
     print(f"Generated Context Features: {con_features.shape}")
 
@@ -97,9 +94,9 @@ def load_or_generate_features(data, batch_size, dataset_name):
     info_features = []
     for i in range(0, len(smiles), batch_size):
         batch_smiles = smiles[i:i + batch_size]
-        batch_features = prepare_info_features(batch_smiles)
-        batch_features = torch.tensor(batch_features, dtype=torch.float32).to(device)
-        info_features.append(batch_features)
+        batch_info = prepare_info_features(batch_smiles)
+        batch_info = torch.tensor(batch_info, dtype=torch.float32).to(device)
+        info_features.append(batch_info)
     info_features = torch.cat(info_features, dim=0)
 
     #  Edge Features
@@ -122,12 +119,18 @@ def load_or_generate_features(data, batch_size, dataset_name):
         mask_features.append(batch_masks)
     mask_features = torch.cat(mask_features, dim=0)
 
-    features = []
     with torch.no_grad():
         for i in range(0, len(smiles), batch_size):
             batch_smiles = smiles[i:i + batch_size]
-            batch_features = prepare_con_features(batch_smiles)
-            features.append(torch.tensor(batch_features, dtype=torch.float32).to(device))
+            con_features.append(torch.tensor(prepare_con_features(batch_smiles), dtype=torch.float32).to(device))
+            info_features.append(torch.tensor(prepare_info_features(batch_smiles), dtype=torch.float32).to(device))
+            edge_features.append(torch.tensor(prepare_edge_features(batch_smiles), dtype=torch.float32).to(device))
+            mask_features.append(torch.tensor(prepare_mask_features(batch_smiles), dtype=torch.float32).to(device))
+    
+    con_features = torch.cat(con_features, dim=0)
+    info_features = torch.cat(info_features, dim=0)
+    edge_features = torch.cat(edge_features, dim=0)
+    mask_features = torch.cat(mask_features, dim=0)
 
     torch.save(con_features, con_cache_path)
     torch.save(info_features, info_cache_path)
@@ -159,9 +162,11 @@ class SparseDispatcher:
         stitched = torch.cat(expert_out, 0)
         if multiply_by_gates:
             stitched = stitched.mul(self._nonzero_gates)
+
+        expected_batch_size = self._gates.size(0)
         zeros = torch.zeros(self._gates.size(0), expert_out[-1].size(1), requires_grad=True, device=stitched.device)
         combined = zeros.index_add(0, self._batch_index, stitched.float())
-        return combined
+        return combined[:expected_batch_size]
 
     def expert_to_gates(self):
         return torch.split(self._nonzero_gates, self._part_sizes, dim=0)
@@ -266,74 +271,11 @@ class MoE(nn.Module):
         y = dispatcher.combine(expert_outputs)
         return y, loss
 
-dataset_routing_history = {}
-
-def track_routing_over_epochs(dataset_name, routing_assignments, num_experts, epoch):
-    """
-    각 epoch마다 데이터셋별 expert 분포를 저장하는 함수
-    - dataset_name: 데이터셋 이름 
-    - routing_assignments: 현재 epoch에서 각 샘플이 routing된 expert 인덱스 리스트
-    - num_experts: 사용된 expert 개수
-    - epoch: 현재 epoch 번호
-    """
-    if dataset_name not in dataset_routing_history:
-        dataset_routing_history[dataset_name] = {expert: [] for expert in range(num_experts)}
-
-    # 각 expert에 얼마나 많은 샘플이 routing되었는지 count
-    expert_counts = np.zeros(num_experts)
-    for assign in routing_assignments:
-        expert_counts[assign] += 1
-
-    # 비율 계산 (각 expert별 routing된 샘플 비율)
-    total_samples = len(routing_assignments)
-    expert_ratios = expert_counts / total_samples if total_samples > 0 else expert_counts
-
-    # 저장
-    for expert in range(num_experts):
-        dataset_routing_history[dataset_name][expert].append(expert_ratios[expert])
-
-    print(f"[Epoch {epoch}] {dataset_name} - Expert Routing Distribution: {expert_ratios}")
-
-
-def visualize_routing_weights(moe, dataset_name):
-    """
-    각 epoch별로 router가 각 embedding(con, info, edge, mask)에 부여한 평균 가중치를 시각화 및 저장
-    """
-    num_epochs = len(moe.routing_weights)  # 총 학습 epoch 수
-    num_experts = moe.num_experts
-    num_embeddings = len(moe.input_sizes)  # con, info, edge, mask (총 4개)
-
-    # (Epochs, num_experts) 형태를 (Epochs, num_embeddings) 형태로 변환
-    routing_weights = np.array(moe.routing_weights)  # (Epochs, batch_size, num_experts)
-    avg_weights_per_epoch = np.mean(routing_weights, axis=1)  # (Epochs, num_experts)
-
-    #  Expert 별 embedding 가중치 평균 계산
-    embedding_names = ["con", "info", "edge", "mask"]
-    expert_means = avg_weights_per_epoch.T  # (num_experts, Epochs)
-
-    plt.figure(figsize=(12, 6))
-
-    for i in range(num_embeddings):
-        plt.plot(range(num_epochs), expert_means[i], label=f"{embedding_names[i]}")
-
-    plt.xlabel("Epoch")
-    plt.ylabel("Average Routing Weight")
-    plt.title(f"Expert Routing Weights per Embedding ({dataset_name})")
-    plt.legend()
-    plt.grid(True)
-
-    # 🔹 이미지 저장
-    save_path = f"./routing_weights_{dataset_name}.png"
-    plt.savefig(save_path)
-    print(f"[INFO] Routing weight plot saved at: {save_path}")
-
-    plt.show()
-
 if __name__ == "__main__":
     admet_groups = admet_group(path='data/')
     benchmarks = [admet_groups.get('CYP2C9_Veith')]
     batch_size = 32
-    input_size = 300
+    input_size = 1200
     output_size = 1
     num_experts = 3
     hidden_size = 512
@@ -350,68 +292,63 @@ if __name__ == "__main__":
         train_val, test = benchmark['train_val'], benchmark['test']
         train, val = train_test_split(train_val, test_size=0.2, stratify=train_val["Y"], random_state=42)
         
-        train_con, _, _, _ = load_or_generate_features(train, batch_size, name)
-        val_con, _, _, _ = load_or_generate_features(val, batch_size, name)
-        val_con = val_con[:len(val)]
-        test_con, _, _, _ = load_or_generate_features(test, batch_size, name)
+        train_con, train_info, train_edge, train_mask = load_or_generate_features(train, batch_size, name)
+        val_con, val_info, val_edge, val_mask = load_or_generate_features(val, batch_size, name)
+        test_con, test_info, test_edge, test_mask = load_or_generate_features(test, batch_size, name)
 
-        moe = MoE(input_size, output_size, num_experts, hidden_size, noisy_gating=True, k=2).to(device)
+        moe = MoE(input_size, output_size, num_experts, hidden_size, noisy_gating=True, k=3).to(device)
         optimizer = Adam(moe.parameters(), lr=learning_rate, weight_decay=weight_decay)
-        pos_weight = torch.tensor([2.0], device=device)  
-        criterion = BCEWithLogitsLoss(pos_weight=pos_weight)
-        scheduler = CosineAnnealingLR(optimizer, T_max=30, eta_min=1e-4)
+        scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5)
+        criterion = BCEWithLogitsLoss(pos_weight=torch.tensor([2.0], device=device))
 
         for epoch in range(200):
             moe.train()
             optimizer.zero_grad()
-            train_output, loss_entropy_reg = moe(train_con)
-            
-            gates, _ = moe.noisy_top_k_gating(train_con, train=True)  
-            if gates is not None:
-                expert_usage = gates.mean(dim=0).detach().cpu().numpy()
-                print(f"[DEBUG] Expert Usage per Batch: {expert_usage}")
-
+            train_input = torch.cat([train_con, train_info, train_edge, train_mask], dim=1)
+            train_output, loss_entropy_reg = moe(train_input)
             train_labels = torch.tensor(train["Y"].values, dtype=torch.float32).unsqueeze(1).to(device)
-            expert_entropy_loss = -(gates * torch.log(gates + 1e-8)).sum(dim=1).mean()
-            train_loss = criterion(train_output, train_labels) + 0.2 * expert_entropy_loss
-
+            train_loss = criterion(train_output, train_labels) + loss_entropy_reg
+            
             train_loss.backward()
-            torch.nn.utils.clip_grad_norm_(moe.parameters(), max_norm=5.0)
-
             optimizer.step()
             train_auprc = compute_auprc(train_labels.cpu().numpy(), train_output.cpu().detach().numpy())
-
+            
             moe.eval()
-            for expert in moe.experts:
-                expert.eval()
-
-            val_con_dict = {smiles: feature for smiles, feature in zip(val["Drug"], val_con)}
-            val_con_list = [val_con_dict[smiles] for smiles in val["Drug"] if smiles in val_con_dict]
-            val_con = torch.stack(val_con_list) if len(val_con_list) > 0 else torch.empty(0, device=device)
-
             with torch.no_grad():
-                if len(val_con) > 0:
-                    val_output, _ = moe(val_con)
-                    val_labels = torch.tensor(val["Y"].values, dtype=torch.float32).unsqueeze(1).to(device)
-                    print(f"[DEBUG] val_output mean: {val_output.mean().item():.6f}, std: {val_output.std().item():.6f}")
-                    val_loss = criterion(val_output, val_labels)
-                    val_auprc = compute_auprc(val_labels.cpu().numpy(), val_output.cpu().detach().numpy())
-                else:
-                    print("[WARNING] val_con is empty. Skipping validation step.")
-                    val_loss = torch.tensor(float('inf'), device=device)
-                    val_auprc = 0.0
-
-            print(f"Epoch [{epoch+1}/200] | Train Loss: {train_loss.item():.4f} | Train AUPRC: {train_auprc:.4f} | "
-                  f"Val Loss: {val_loss.item():.4f} | Val AUPRC: {val_auprc:.4f}")
+                val_input = torch.cat([val_con, val_info, val_edge, val_mask], dim=1)
+                val_output, _ = moe(val_input)
+                val_output = val_output.mean(dim=1) # [7738]
+                val_labels = torch.tensor(val["Y"].values, dtype=torch.float32).unsqueeze(1).to(device) # [1935,1]
+                val_loss = criterion(val_output, val_labels)
+                val_auprc = compute_auprc(val_labels.cpu().numpy(), val_output.cpu().detach().numpy())
             
             scheduler.step(val_loss)
+            print(f"Epoch [{epoch+1}/200] | Train Loss: {train_loss.item():.4f} | Train AUPRC: {train_auprc:.4f} | "
+                f"Val Loss: {val_loss.item():.4f} | Val AUPRC: {val_auprc:.4f}")
             
-            if val_auprc > best_val_auprc:
+            """ if val_auprc > best_val_auprc:
                 best_val_auprc = val_auprc
                 patience_counter = 0
             else:
                 patience_counter += 1
-
+            
             if patience_counter >= patience:
                 print(f"Early stopping triggered at epoch {epoch+1}!")
-                break
+                break """
+
+            moe.eval()
+            test_output_list = []
+            predictions = {}
+            for i in range(0, len(test), batch_size):
+                batch_indices = slice(i, min(i + batch_size, len(test)))
+                batch_con = test_con[batch_indices]
+                with torch.no_grad():
+                    batch_output = moe(batch_con).squeeze()
+                test_output_list.append(batch_output)
+
+            test_output = torch.cat(test_output_list, dim=0)
+            y_pred = test_output.cpu().numpy()
+            predictions[name] = y_pred
+
+        results = admet_groups.evaluate(predictions)
+        print(f"Evaluation Results for AUPRC:", results)
