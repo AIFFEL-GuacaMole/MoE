@@ -53,15 +53,16 @@ def prepare_mask_features(smiles_data):
     transformer = PretrainedDGLTransformer(kind='gin_supervised_masking')
     return transformer(smiles_data)
 
-def load_or_generate_features(data, batch_size, dataset_name):
+def load_or_generate_features(data, batch_size, dataset_name, split):
     cache_dir = "MoE/MoE/cache"
     os.makedirs(cache_dir, exist_ok=True)  # 캐시 디렉토리 생성
 
-    # 데이터셋 별로 캐시 파일 경로 설정
-    con_cache_path = os.path.join(cache_dir, f"{dataset_name}_con_features.pt")
-    info_cache_path = os.path.join(cache_dir, f"{dataset_name}_info_features.pt")
-    edge_cache_path = os.path.join(cache_dir, f"{dataset_name}_edge_features.pt")
-    mask_cache_path = os.path.join(cache_dir, f"{dataset_name}_mask_features.pt")
+   # 데이터셋 + split (train/val/test) 별로 캐시 파일 경로 설정
+    con_cache_path = os.path.join(cache_dir, f"{dataset_name}_{split}_con_features.pt")
+    info_cache_path = os.path.join(cache_dir, f"{dataset_name}_{split}_info_features.pt")
+    edge_cache_path = os.path.join(cache_dir, f"{dataset_name}_{split}_edge_features.pt")
+    mask_cache_path = os.path.join(cache_dir, f"{dataset_name}_{split}_mask_features.pt")
+
 
     #  만약 모든 캐시 파일이 존재하면 불러오기
     if all(os.path.exists(path) for path in [con_cache_path, info_cache_path, edge_cache_path, mask_cache_path]):
@@ -76,10 +77,12 @@ def load_or_generate_features(data, batch_size, dataset_name):
 
     #  없으면 새로 생성
     smiles = data["Drug"].tolist()
-    print(f"Dataset {dataset_name}: {len(smiles)} molecules for feature extraction")
+    print(f"Dataset {dataset_name} ({split}): {len(smiles)} molecules for feature extraction")
 
-    # 🔹 GIN Context Features
-    print(f"{dataset_name} - con_feature generating...")
+
+
+    # GIN Context Features
+    print(f"{dataset_name} ({split}) - con_feature generating...")
     con_features = []
     for i in range(0, len(smiles), batch_size):
         batch_smiles = smiles[i:i + batch_size]
@@ -90,7 +93,7 @@ def load_or_generate_features(data, batch_size, dataset_name):
     print(f"Generated Context Features: {con_features.shape}")
 
     #  GIN Info Features
-    print(f"{dataset_name} - info_feature generating...")
+    print(f"Generated Context Features: {con_features.shape}")
     info_features = []
     for i in range(0, len(smiles), batch_size):
         batch_smiles = smiles[i:i + batch_size]
@@ -100,7 +103,8 @@ def load_or_generate_features(data, batch_size, dataset_name):
     info_features = torch.cat(info_features, dim=0)
 
     #  Edge Features
-    print(f"{dataset_name} - edge_feature generating...")
+    print(f"{dataset_name} ({split}) - edge_feature generating...")
+
     edge_features = []
     for i in range(0, len(smiles), batch_size):
         batch_smiles = smiles[i:i + batch_size]
@@ -110,7 +114,7 @@ def load_or_generate_features(data, batch_size, dataset_name):
     edge_features = torch.cat(edge_features, dim=0)
 
     #  Mask Features
-    print(f"{dataset_name} - mask_feature generating...")
+    print(f"{dataset_name} ({split}) - mask_feature generating...")
     mask_features = []
     for i in range(0, len(smiles), batch_size):
         batch_smiles = smiles[i:i + batch_size]
@@ -292,9 +296,9 @@ if __name__ == "__main__":
         train_val, test = benchmark['train_val'], benchmark['test']
         train, val = train_test_split(train_val, test_size=0.2, stratify=train_val["Y"], random_state=42)
         
-        train_con, train_info, train_edge, train_mask = load_or_generate_features(train, batch_size, name)
-        val_con, val_info, val_edge, val_mask = load_or_generate_features(val, batch_size, name)
-        test_con, test_info, test_edge, test_mask = load_or_generate_features(test, batch_size, name)
+        train_con, train_info, train_edge, train_mask = load_or_generate_features(train, batch_size, name, "train")
+        val_con, val_info, val_edge, val_mask = load_or_generate_features(val, batch_size, name, "val")
+        test_con, test_info, test_edge, test_mask = load_or_generate_features(test, batch_size, name, "test")
 
         moe = MoE(input_size, output_size, num_experts, hidden_size, noisy_gating=True, k=3).to(device)
         optimizer = Adam(moe.parameters(), lr=learning_rate, weight_decay=weight_decay)
@@ -342,13 +346,17 @@ if __name__ == "__main__":
             for i in range(0, len(test), batch_size):
                 batch_indices = slice(i, min(i + batch_size, len(test)))
                 batch_con = test_con[batch_indices]
+                batch_info = test_info[batch_indices]
+                batch_edge = test_edge[batch_indices]
+                batch_mask = test_mask[batch_indices]
+                batch_input = torch.cat([batch_con, batch_info, batch_edge, batch_mask], dim=1)
                 with torch.no_grad():
-                    batch_output = moe(batch_con).squeeze()
+                    batch_output = moe(batch_input).squeeze()
                 test_output_list.append(batch_output)
-
+            
             test_output = torch.cat(test_output_list, dim=0)
             y_pred = test_output.cpu().numpy()
             predictions[name] = y_pred
 
-        results = admet_groups.evaluate(predictions)
-        print(f"Evaluation Results for AUPRC:", results)
+            results = admet_groups.evaluate(predictions)
+            print(f"Evaluation Results for AUPRC:", results)
