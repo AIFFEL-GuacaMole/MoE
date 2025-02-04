@@ -122,7 +122,13 @@ def load_or_generate_features(data, batch_size, dataset_name):
         mask_features.append(batch_masks)
     mask_features = torch.cat(mask_features, dim=0)
 
-    # ✅ 생성된 feature 저장 (캐시 활용)
+    features = []
+    with torch.no_grad():
+        for i in range(0, len(smiles), batch_size):
+            batch_smiles = smiles[i:i + batch_size]
+            batch_features = prepare_con_features(batch_smiles)
+            features.append(torch.tensor(batch_features, dtype=torch.float32).to(device))
+
     torch.save(con_features, con_cache_path)
     torch.save(info_features, info_cache_path)
     torch.save(edge_features, edge_cache_path)
@@ -176,7 +182,7 @@ class MLP(nn.Module):
         out = self.relu(out)
         out = self.dropout1(out)  
         out = self.fc2(out)
-        out = torch.softmax(out, dim=1)
+        out = self.sigmoid(out)
         return out
 
 class MoE(nn.Module):
@@ -186,8 +192,8 @@ class MoE(nn.Module):
         self.num_experts = num_experts
         self.k = k
         self.experts = nn.ModuleList([MLP(input_size, output_size, hidden_size) for _ in range(num_experts)])
-        self.w_gate = nn.Parameter(torch.randn(input_size, num_experts) * 0.1, requires_grad=True)
-        self.w_noise = nn.Parameter(torch.randn(input_size, num_experts) * 0.1, requires_grad=True)
+        self.w_gate = nn.Parameter(torch.randn(input_size, num_experts) * 0.05, requires_grad=True)
+        self.w_noise = nn.Parameter(torch.randn(input_size, num_experts) * 0.05, requires_grad=True)
         self.softplus = nn.Softplus()
         self.softmax = nn.Softmax(dim=1)
         self.register_buffer("mean", torch.tensor([0.0]))
@@ -247,7 +253,7 @@ class MoE(nn.Module):
 
         return gates, load
 
-    def forward(self, x, loss_coef=1e-2):
+    def forward(self, x, loss_coef=0.5):
         gates, load = self.noisy_top_k_gating(x, self.training)
         importance = gates.sum(0)
         loss = self.cv_squared(importance) + self.cv_squared(load)
@@ -329,7 +335,7 @@ if __name__ == "__main__":
     batch_size = 32
     input_size = 300
     output_size = 1
-    num_experts = 2
+    num_experts = 3
     hidden_size = 512
     learning_rate = 5e-4
     weight_decay = 1e-4
@@ -351,7 +357,7 @@ if __name__ == "__main__":
 
         moe = MoE(input_size, output_size, num_experts, hidden_size, noisy_gating=True, k=2).to(device)
         optimizer = Adam(moe.parameters(), lr=learning_rate, weight_decay=weight_decay)
-        pos_weight = torch.tensor([5.0], device=device)  
+        pos_weight = torch.tensor([2.0], device=device)  
         criterion = BCEWithLogitsLoss(pos_weight=pos_weight)
         scheduler = CosineAnnealingLR(optimizer, T_max=30, eta_min=1e-4)
 
